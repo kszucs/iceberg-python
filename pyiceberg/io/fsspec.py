@@ -334,13 +334,17 @@ SCHEME_TO_FS: dict[str, Callable[..., AbstractFileSystem]] = {
 
 _ADLS_SCHEMES = frozenset({"abfs", "abfss", "wasb", "wasbs"})
 _HF_SCHEMES = frozenset({"hf"})
+_HF_TYPE_PREFIXES = frozenset({"models", "datasets", "spaces", "kernels", "buckets"})
 
 
 def _has_revision_in_path(uri: "ParseResult") -> bool:
     """Check whether a HuggingFace Hub location pins a revision itself."""
-    # The revision is attached to the repo id, which spans at most the netloc and the two path
-    # segments following it: hf://<repo_type>/<owner>/<repo>@<revision>/<path_in_repo>.
-    return any("@" in segment for segment in (uri.netloc, *uri.path.lstrip("/").split("/")[:2]))
+    # Locations are hf://[<type>/]<namespace>/<name>[@<revision>][/<path_in_repo>], so like huggingface_hub
+    # and iceberg-rust, only an '@' in the two repo id segments marks a revision, not one in the path in repo.
+    segments = [uri.netloc, *uri.path.lstrip("/").split("/")]
+    if segments[0] in _HF_TYPE_PREFIXES:
+        segments = segments[1:]
+    return any("@" in segment for segment in segments[:2])
 
 
 def _exists(fs: AbstractFileSystem, location: str, fs_kwargs: Properties) -> bool:

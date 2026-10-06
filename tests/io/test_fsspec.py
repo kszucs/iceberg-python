@@ -1217,11 +1217,21 @@ def test_fsspec_hf_revision_forwarded_to_write_calls() -> None:
         mock_fs.rm.assert_called_with(location, revision="a-pinned-revision")
 
 
-def test_fsspec_hf_revision_in_location_takes_precedence() -> None:
+@pytest.mark.parametrize(
+    "location, expected_fs_kwargs",
+    [
+        ("hf://datasets/user/repo@another-revision/file.parquet", {}),
+        ("hf://datasets/user/repo@refs/pr/1/file.parquet", {}),
+        ("hf://user/repo@another-revision/file.parquet", {}),
+        # an '@' in the path in repo is part of a file or directory name, not a revision
+        ("hf://datasets/user/repo/dir@1/file.parquet", {"revision": "a-pinned-revision"}),
+        ("hf://user/repo/dir@1/file.parquet", {"revision": "a-pinned-revision"}),
+    ],
+)
+def test_fsspec_hf_revision_in_location_takes_precedence(location: str, expected_fs_kwargs: Properties) -> None:
     session_properties: Properties = {
         "hf.revision": "a-pinned-revision",
     }
-    location = "hf://datasets/user/repo@another-revision/file.parquet"
 
     with mock.patch("huggingface_hub.HfFileSystem") as mock_hf_fs:
         mock_fs = mock_hf_fs.return_value
@@ -1232,7 +1242,7 @@ def test_fsspec_hf_revision_in_location_takes_precedence() -> None:
 
         # huggingface_hub raises on a revision kwarg conflicting with the one in the path
         assert len(input_file) == 123
-        mock_fs.info.assert_called_with(location)
+        mock_fs.info.assert_called_with(location, **expected_fs_kwargs)
 
 
 def test_fsspec_hf_no_revision_by_default() -> None:
